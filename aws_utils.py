@@ -172,6 +172,7 @@ class AMIHelper(object):
 
         ebs_root = EBSBlockDeviceType()
         ebs_root.size=img_size
+        ebs_root.delete_on_termination = True
         block_map = BlockDeviceMapping()
         block_map['/dev/sda'] = ebs_root
 
@@ -259,8 +260,16 @@ class EBSHelper(object):
         Launch the AMI - terminate
         upload, create volume and then terminate
         """
-        pass
+        if self.instance:
+            raise Exception("Safe upload can only be used when the utility instance is not already running")
 
+        self.start_ami()
+        try:
+            snapshot = self.file_to_snapshot(image_file)
+        finally:
+            self.terminate_ami()
+
+        return snapshot
 
     def start_ami(self):
         try:
@@ -451,14 +460,14 @@ class EBSHelper(object):
         self.log.debug("Detaching volume (%s)" % volume.id)
         volume.detach()
 
-        self.log.debug("Waiting up to 120 seconds for volume (%s) to become available" % (volume.id))
+        self.log.debug("Waiting up to 120 seconds for volume (%s) to become detached (available)" % (volume.id))
         retcode = 1
         for i in range(12):
             volume.update()
             if volume.status == "available":
                 retcode = 0
                 break
-            self.log.debug("Volume status (%s) - waiting for 'attached': %d/120" % (volume.status, i*10))
+            self.log.debug("Volume status (%s) - waiting for 'available': %d/120" % (volume.status, i*10))
             sleep(10)
 
         if retcode:

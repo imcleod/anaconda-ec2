@@ -211,8 +211,9 @@ def detect_distro(install_script):
     return None
 
 
-def generate_install_image(ks_file, root_pw, image_filename):
-    working_kickstart = do_pw_sub(ks_file, root_pw)
+def generate_install_image(ks_file, image_filename):
+    # No need for PW sub here - the relevant bits can be read without sub
+    working_kickstart = open(ks_file).read()
     distro = detect_distro(working_kickstart)
     if not detect_distro:
         raise Exception("Could not determine distro type from install script '%s'" % (ks_file))
@@ -237,12 +238,12 @@ def generate_install_image(ks_file, root_pw, image_filename):
 
 if __name__ == "__main__":
     # stuff only to run when not called via 'import' here
-    if len(sys.argv) != 4:
+    if len(sys.argv) != 3:
         print
         print "Create a pvgrub bootable image for EC2"
         print 
-        print "usage: %s <ks_file> <root_pw> <image_file>" % sys.argv[0]
+        print "usage: %s <ks_file> <image_file>" % sys.argv[0]
         print
         sys.exit(1)
 
-    generate_install_image(sys.argv[1], sys.argv[2], sys.argv[3])
+    generate_install_image(sys.argv[1], sys.argv[2])

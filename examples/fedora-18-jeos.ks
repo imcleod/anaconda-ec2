@@ -3,12 +3,12 @@ url --url=http://mirror.pnl.gov/fedora/linux/releases/18/Fedora/x86_64/os/
 repo --name="fedora-everything" --baseurl=http://mirror.pnl.gov/fedora/linux/releases/18/Everything/x86_64/os/
 install
 graphical
-vnc --password=changeme
+vnc --password=${adminpw}
 keyboard us
 lang en_US.UTF-8
 skipx
 network --device eth0 --bootproto dhcp
-rootpw p@ssw0rd
+rootpw ${adminpw}
 firewall --disabled
 authconfig --enableshadow --enablemd5
 selinux --enforcing
