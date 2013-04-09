@@ -16,7 +16,7 @@ from boto.ec2.blockdevicemapping import EBSBlockDeviceType, BlockDeviceMapping
 logging.getLogger('boto').setLevel(logging.INFO)
 
 # Fedora 18 - i386 - EBS backed themselves
-utility_amis = { 'us-east-1':      [ 'ami-0d44cd64', 'sudo', 'ec2-user' ],
+UTILITY_AMIS = { 'us-east-1':      [ 'ami-0d44cd64', 'sudo', 'ec2-user' ],
                  'us-west-2':      [ 'ami-6467ec54', 'sudo', 'ec2-user' ],
                  'us-west-1':      [ 'ami-de99b99b', 'sudo', 'ec2-user' ],
                  'eu-west-1':      [ 'ami-cafef1be', 'sudo', 'ec2-user' ],
@@ -26,7 +26,7 @@ utility_amis = { 'us-east-1':      [ 'ami-0d44cd64', 'sudo', 'ec2-user' ],
                  'sa-east-1':      [ 'ami-e5548cf8', 'sudo', 'ec2-user' ] }
 
 # hd00 style (full disk image) v1.03
-pvgrub_akis =  { 'us-east-1':      { 'i386':'aki-b2aa75db' ,'x86_64':'aki-b4aa75dd' },
+PVGRUB_AKIS =  { 'us-east-1':      { 'i386':'aki-b2aa75db' ,'x86_64':'aki-b4aa75dd' },
                  'us-west-2':      { 'i386':'aki-f637bac6' ,'x86_64':'aki-f837bac8' },
                  'us-west-1':      { 'i386':'aki-e97e26ac' ,'x86_64':'aki-eb7e26ae' },
                  'eu-west-1':      { 'i386':'aki-89655dfd' ,'x86_64':'aki-8b655dff' },
@@ -36,10 +36,50 @@ pvgrub_akis =  { 'us-east-1':      { 'i386':'aki-b2aa75db' ,'x86_64':'aki-b4aa75
                  'sa-east-1':      { 'i386':'aki-ce8f51d3' ,'x86_64':'aki-c88f51d5' } }
 
 
-class EBSHelper(object):
+def wait_for_ec2_instance_state(instance, log, final_state='running', timeout=300):
+    for i in range(timeout):
+        if i % 10 == 0:
+            log.debug("Waiting for EC2 instance to enter state (%s): %d/%d" % (final_state,i,timeout))
+        try:
+            instance.update()
+        except EC2ResponseError, e:
+            # We occasionally get errors when querying an instance that has just started - ignore them and hope for the best
+            log.warning("EC2ResponseError encountered when querying EC2 instance (%s) - trying to continue" % (instance.id), exc_info = True)
+        except:
+            log.error("Exception encountered when updating status of instance (%s)" % (instance.id), exc_info = True)
+            try:
+                terminate_instance(instance)
+            except:
+                log.warning("WARNING: Instance (%s) failed to enter state (%s) and will not terminate - it may still be running" % (instance.id, final_state), exc_info = True)
+                raise Exception("Instance (%s) failed to fully start or terminate - it may still be running" % (instance.id))
+            raise Exception("Exception encountered when waiting for instance (%s) enter state (%s)" % (instance.id, final_state))
+        if instance.state == final_state:
+            break
+        sleep(1)
 
-    def __init__(self, ec2_region, access_key, secret_key, utility_ami = None, command_prefix = None, user = 'root'):
-        super(EBSHelper, self).__init__()
+    if instance.state != final_state:
+        try:
+            terminate_instance(instance)
+        except:
+            log.warning("WARNING: Instance (%s) failed to enter state (%s) and will not terminate - it may still be running" % (instance.id, final_state), exc_info = True)
+            raise Exception("Instance (%s) failed to enter desired state (%s) - it may still be running" % (instance.id, final_state))
+        raise Exception("Instance failed to start after %d seconds - stopping" % (timeout))
+
+
+def terminate_instance(instance):
+    # boto 1.9 claims a terminate() method but does not implement it
+    # boto 2.0 throws an exception if you attempt to stop() an S3 backed instance
+    # introspect here and do the best we can
+    if "terminate" in dir(instance):
+        instance.terminate()
+    else:
+        instance.stop()
+
+
+class AMIHelper(object):
+
+    def __init__(self, ec2_region, access_key, secret_key):
+        super(AMIHelper, self).__init__()
         self.log = logging.getLogger('%s.%s' % (__name__, self.__class__.__name__))
         try:
             self.region = boto.ec2.get_region(ec2_region, aws_access_key_id=access_key, aws_secret_access_key=secret_key)
@@ -47,35 +87,24 @@ class EBSHelper(object):
         except Exception as e:
             self.log.error("Exception while attempting to establish EC2 connection")
             raise
-        if not utility_ami:
-            self.utility_ami = utility_amis[ec2_region][0]
-            self.command_prefix = utility_amis[ec2_region][1]
-            self.user = utility_amis[ec2_region][2]
-        else:
-            self.utility_ami = utility_ami
-            self.command_prefix = command_prefix
-            self.user = user
-        self.instance = None
         self.security_group = None
-        self.key_name = None
-        self.key_file_object = None
-
-
-    def safe_upload_and_shutdown(self, image_file):
-        """
-        Launch the AMI - terminate
-        upload, create volume and then terminate
-        """
-        pass
-
+        self.instance = None
 
     def register_ebs_ami(self, snapshot_id, arch = 'x86_64', default_ephem_map = True,
-                         img_name='EBSHelper AMI', img_desc='Created by EBSHelper object'):
+                         img_name = None, img_desc = None):
         # register against snapshot
         try:
-            aki=pvgrub_akis[self.region.name][arch]
+            aki=PVGRUB_AKIS[self.region.name][arch]
         except KeyError:
             raise Exception("Unable to determine pvgrub hd00 AKI for region (%s) arch (%s)" % (self.region.name, arch))
+
+        if not img_name:
+            rand_id = random.randrange(2**32)
+            # These names need to be unique, hence the pseudo-uuid
+            img_name='EBSHelper AMI - %s - uuid-%x' % (snapshot_id, rand_id)
+        if not img_desc:
+            img_desc='Created directly from volume snapshot %s' % (snapshot_id)
+
         self.log.debug("Registering snapshot (%s) as new EBS AMI" % (snapshot_id))
         ebs = EBSBlockDeviceType()
         ebs.snapshot_id = snapshot_id
@@ -96,6 +125,141 @@ class EBSHelper(object):
                            architecture=arch,  kernel_id=aki,
                            root_device_name='/dev/sda', block_device_map=block_map)
         return str(result)
+
+
+    def launch_wait_snapshot(self, ami, user_data, img_size = 10, img_name = None, img_desc = None,
+                             remote_access_cmd = None):
+
+        if not img_name:
+            rand_id = random.randrange(2**32)
+            # These names need to be unique, hence the pseudo-uuid
+            img_name = 'EBSHelper AMI - %s - uuid-%x' % (ami, rand_id)
+        if not img_desc:
+            img_desc = 'Created from modified snapshot of AMI %s' % (ami)
+
+        try:
+            ami = self._launch_wait_snapshot(ami, user_data, img_size, img_name, img_desc, remote_access_cmd)
+        finally:
+            if self.security_group:
+                try:
+                    self.security_group.delete()
+                except:
+                    self.log.warning("Had a temporary security group but failed to delete it on EC2 - group may still be present")
+
+            # TODO: This is sometimes redundant - try to clean up
+            if self.instance:
+                try:
+                    self.instance.update()
+                    if self.instance.state != 'terminated':
+                        terminate_instance(self.instance)
+                except:
+                    self.log.warning("Still have an instance object but either could not query or could not terminate")
+        return ami
+
+
+    def _launch_wait_snapshot(self, ami, user_data, img_size = 10, img_name = None, img_desc = None,
+                             remote_access_command = None):
+
+        rand_id = random.randrange(2**32)
+        # Modified from code taken from Image Factory 
+        # Create security group
+        security_group_name = "ebs-helper-vnc-tmp-%x" % (rand_id)
+        security_group_desc = "Temporary security group with SSH access generated by EBSHelper python object"
+        self.log.debug("Creating temporary security group (%s)" % (security_group_name))
+        self.security_group = self.conn.create_security_group(security_group_name, security_group_desc)
+        self.security_group.authorize('tcp', 22, 22, '0.0.0.0/0')
+        self.security_group.authorize('tcp', 5900, 5950, '0.0.0.0/0')
+
+        ebs_root = EBSBlockDeviceType()
+        ebs_root.size=img_size
+        block_map = BlockDeviceMapping()
+        block_map['/dev/sda'] = ebs_root
+
+        # Now launch it
+        instance_type="m1.small"
+        self.log.debug("Starting ami %s in region %s with instance_type %s" % (ami, self.region.name, instance_type))
+
+        reservation = self.conn.run_instances(ami, max_count=1, instance_type=instance_type, 
+                                              user_data = user_data,
+                                              security_groups = [ security_group_name ],
+                                              block_device_map = block_map)
+        # I used to have a check for more than one instance here -- but that would be a profound bug in boto
+        if len(reservation.instances) == 0:
+            raise Exception("Attempt to start instance failed")
+
+        self.instance = reservation.instances[0]
+
+        wait_for_ec2_instance_state(self.instance, self.log, final_state='running', timeout=300)
+
+        self.log.debug("Instance (%s) is now running" % self.instance.id)
+        self.log.debug("Public DNS will be: %s" % self.instance.public_dns_name)
+        self.log.debug("Now waiting up to 30 minutes for instance to stop")
+
+        wait_for_ec2_instance_state(self.instance, self.log, final_state='stopped', timeout=1800)
+
+        # Snapshot
+        self.log.debug("Creating a new EBS backed image from completed/stopped EBS instance")
+        new_ami_id = self.conn.create_image(self.instance.id, img_name, img_desc)
+        self.log.debug("boto creat_image call returned AMI ID: %s" % (new_ami_id))
+        self.log.debug("Waiting for newly generated AMI to become available")
+        # As with launching an instance we have seen occasional issues when trying to query this AMI right
+        # away - give it a moment to settle
+        sleep(10)
+        new_amis = self.conn.get_all_images([ new_ami_id ])
+        new_ami = new_amis[0]
+        timeout = 120
+        interval = 10
+        for i in range(timeout):
+            new_ami.update()
+            if new_ami.state == "available":
+                break
+            elif new_ami.state == "failed":
+                raise Exception("Amazon reports EBS image creation failed")
+            self.log.debug("AMI status (%s) - waiting for 'available' - [%d of %d seconds elapsed]" % (new_ami.state, i * interval, timeout * interval))
+            sleep(interval)
+
+        self.log.debug("Terminating/deleting instance")
+        terminate_instance(self.instance)
+ 
+        if new_ami.state != "available":
+            raise Exception("Failed to produce an AMI ID")
+
+        self.log.debug("SUCCESS: %s is now available for launch" % (new_ami_id))
+
+        return new_ami_id
+
+
+class EBSHelper(object):
+
+    def __init__(self, ec2_region, access_key, secret_key, utility_ami = None, command_prefix = None, user = 'root'):
+        super(EBSHelper, self).__init__()
+        self.log = logging.getLogger('%s.%s' % (__name__, self.__class__.__name__))
+        try:
+            self.region = boto.ec2.get_region(ec2_region, aws_access_key_id=access_key, aws_secret_access_key=secret_key)
+            self.conn = self.region.connect(aws_access_key_id=access_key, aws_secret_access_key=secret_key)
+        except Exception as e:
+            self.log.error("Exception while attempting to establish EC2 connection")
+            raise
+        if not utility_ami:
+            self.utility_ami = UTILITY_AMIS[ec2_region][0]
+            self.command_prefix = UTILITY_AMIS[ec2_region][1]
+            self.user = UTILITY_AMIS[ec2_region][2]
+        else:
+            self.utility_ami = utility_ami
+            self.command_prefix = command_prefix
+            self.user = user
+        self.instance = None
+        self.security_group = None
+        self.key_name = None
+        self.key_file_object = None
+
+
+    def safe_upload_and_shutdown(self, image_file):
+        """
+        Launch the AMI - terminate
+        upload, create volume and then terminate
+        """
+        pass
 
 
     def start_ami(self):
@@ -137,7 +301,8 @@ class EBSHelper(object):
             raise Exception("Attempt to start instance failed")
 
         self.instance = reservation.instances[0]
-        self.wait_for_ec2_instance_start(self.instance)
+        #self.wait_for_ec2_instance_start(self.instance)
+        wait_for_ec2_instance_state(self.instance, self.log, final_state='running', timeout=300)
         self.wait_for_ec2_ssh_access(self.instance.public_dns_name, self.key_file_object.name)
         self.enable_root(self.instance.public_dns_name, self.key_file_object.name, self.user, self.command_prefix) 
 

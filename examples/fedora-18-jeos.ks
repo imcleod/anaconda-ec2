@@ -8,7 +8,7 @@ keyboard us
 lang en_US.UTF-8
 skipx
 network --device eth0 --bootproto dhcp
-rootpw ozrootpw
+rootpw p@ssw0rd
 firewall --disabled
 authconfig --enableshadow --enablemd5
 selinux --enforcing
@@ -18,12 +18,12 @@ zerombr
 clearpart --all --drives=xvda
 
 #part biosboot --fstype=biosboot --size=1
-part /boot --fstype ext2 --size=100 --ondisk=xvda
+part /boot --fstype ext2 --size=200 --ondisk=xvda
 part pv.2 --size=1 --grow --ondisk=xvda
 volgroup VolGroup00 --pesize=32768 pv.2
 #logvol swap --fstype swap --name=LogVol01 --vgname=VolGroup00 --size= --grow --maxsize=1536
 logvol / --fstype ext4 --name=LogVol00 --vgname=VolGroup00 --size=850 --grow
-reboot
+poweroff
 
 bootloader --location=none
 
