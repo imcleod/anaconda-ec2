@@ -9,9 +9,9 @@ This project is related to my work to run installers natively inside of the Open
 
 https://github.com/redhat-openstack/image-building-poc/
 
-** Example
+## Example
 
-*** Create a local disk image that will boot Anaconda via pvgrub
+### Create a local disk image that will boot Anaconda via pvgrub
 
     $ ./pvgrub_image_from_ks.py ./examples/fedora-18-jeos.ks ./fedora_18.raw
 
@@ -24,7 +24,7 @@ The extracted kernel and ramdisk are put into a disk image along with a valid pv
 menu.lst file.  This is all that is needed to launch Anaconda inside of an EC insance.
 
 
-*** Turn this image into an AMI
+### Turn this image into an AMI
 
     $ ./ami_from_image_file.py <ec2_region> <ec2_key> <ec2_secret> ./fedora_18.raw
 
@@ -34,7 +34,7 @@ If successful this will return an AMI on a line that looks like this:
 
 This AMI launches Anaconda and looks for a kickstart file at the EC2 user data URL.
 
-*** Launch this AMI, wait for the install to complete then capture the results as a new AMI
+### Launch this AMI, wait for the install to complete then capture the results as a new AMI
 
 The next script will launch this AMI, pass the kickstart via user data and then wait
 for the install to complete and the instance to shut down.  Once this is done it will
