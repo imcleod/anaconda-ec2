@@ -11,7 +11,7 @@ https://github.com/redhat-openstack/image-building-poc/
 
 This requires the boto EC2 bindings and libguestfs.  So, to start off with on Fedora or RHEL do this:
 
-# yum install python-libguestfs python-boto
+$ yum install python-libguestfs python-boto
 
 It may require other things I have missed.  If so lemmie know.  
 
