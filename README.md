@@ -9,6 +9,15 @@ This project is related to my work to run installers natively inside of the Open
 
 https://github.com/redhat-openstack/image-building-poc/
 
+This requires the boto EC2 bindings and libguestfs.  So, to start off with on Fedora or RHEL do this:
+
+# yum install python-libguestfs python-boto
+
+It may require other things I have missed.  If so lemmie know.  
+
+-Ian - imcleod@redhat.com
+
+
 ## Example
 
 ### Create a local disk image that will boot Anaconda via pvgrub
