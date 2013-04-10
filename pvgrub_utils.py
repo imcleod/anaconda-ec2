@@ -77,9 +77,9 @@ timeout=0
 #hiddenmenu
 title Anaconda install inside of EC2
         root (hd0,0)
-        kernel /boot/grub/vmlinuz ks=http://169.254.169.254/latest/user-data
+        kernel /boot/grub/vmlinuz %s
         initrd /boot/grub/initrd.img
-"""
+""" % cmdline
 
     f = open(os.path.join(dest_dir, "menu.lst"),"w")
     f.write(pvgrub_conf)
