@@ -1,0 +1,8 @@
+Only F18 works out of the box with these.
+
+RHEL6/CentOS 6 works but cloud-init is, for the moment, broken.
+We need to push an update to EPEL.
+
+The ubuntu preseed here actually works but I don't yet know how
+to add the needed post-install script bits to create a working pvgrub
+menu.lst file.  Help would be appreciated.
