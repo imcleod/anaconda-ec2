@@ -43,6 +43,9 @@ If successful this will return an AMI on a line that looks like this:
 
 This AMI launches Anaconda and looks for a kickstart file at the EC2 user data URL.
 
+NOTE: This AMI can now be used for repeated runs of the next step, provided the OS version
+and architecture are the same.
+
 ### Launch this AMI, wait for the install to complete then capture the results as a new AMI
 
 The next script will launch this AMI, pass the kickstart via user data and then wait
