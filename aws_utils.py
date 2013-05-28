@@ -32,14 +32,14 @@ from boto.ec2.blockdevicemapping import EBSBlockDeviceType, BlockDeviceMapping
 logging.getLogger('boto').setLevel(logging.INFO)
 
 # Fedora 18 - i386 - EBS backed themselves
-UTILITY_AMIS = { 'us-east-1':      [ 'ami-0d44cd64', 'sudo', 'ec2-user' ],
-                 'us-west-2':      [ 'ami-6467ec54', 'sudo', 'ec2-user' ],
-                 'us-west-1':      [ 'ami-de99b99b', 'sudo', 'ec2-user' ],
-                 'eu-west-1':      [ 'ami-cafef1be', 'sudo', 'ec2-user' ],
-                 'ap-southeast-1': [ 'ami-caa9eb98', 'sudo', 'ec2-user' ],
-                 'ap-southeast-2': [ 'ami-dce771e6', 'sudo', 'ec2-user' ],
-                 'ap-northeast-1': [ 'ami-7100ba70', 'sudo', 'ec2-user' ],
-                 'sa-east-1':      [ 'ami-e5548cf8', 'sudo', 'ec2-user' ] }
+UTILITY_AMIS = { 'us-east-1':      [ 'ami-6f640c06', 'sudo', 'ec2-user' ],
+                 'us-west-2':      [ 'ami-67930257', 'sudo', 'ec2-user' ],
+                 'us-west-1':      [ 'ami-634f6126', 'sudo', 'ec2-user' ],
+                 'eu-west-1':      [ 'ami-2d819059', 'sudo', 'ec2-user' ],
+                 'ap-southeast-1': [ 'ami-f8357baa', 'sudo', 'ec2-user' ],
+                 'ap-southeast-2': [ 'ami-f5d340cf', 'sudo', 'ec2-user' ],
+                 'ap-northeast-1': [ 'ami-51bc3550', 'sudo', 'ec2-user' ],
+                 'sa-east-1':      [ 'ami-d2e84dcf', 'sudo', 'ec2-user' ] }
 
 # hd00 style (full disk image) v1.03
 PVGRUB_AKIS =  { 'us-east-1':      { 'i386':'aki-b2aa75db' ,'x86_64':'aki-b4aa75dd' },
